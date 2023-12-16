@@ -1,0 +1,43 @@
+import requests
+import asyncio
+import aiohttp
+from lxml import etree
+
+def get_url(url):
+    response = requests.get(url)
+    response.encoding = 'gbk'
+    tree = etree.HTML(response.text)
+    name = tree.xpath("//ul[@id='section-list']/li/a/text()")
+    address = tree.xpath("//ul[@id='section-list']/li/a/@href")
+    chapter_dict = { key: value for key, value in zip(name,address) }
+    return chapter_dict
+
+async def download(name,url):
+    while True:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    data = await resp.text(encoding='gbk')
+                    tree = etree.HTML(data)
+                    content = '\n'.join(tree.xpath("//div[@class='content']/text()")).replace("\u3000",'')
+                    return content
+                    break
+        except Exception as e:
+            print(e)
+
+async def main():
+    url = 'https://www.biquge635.com/mingchaonaxieshier/'
+    chapter_dict = get_url(url)
+    url_list = []
+    for key, value in chapter_dict.items():
+        t = asyncio.create_task(download(key,value))
+        url_list.append(t)
+
+    result = await asyncio.gather(*url_list)
+    for name,content in zip(list(chapter_dict),result):
+        with open('./明朝那些事儿.txt','a',encoding='utf-8') as f:
+            f.write(f'\n\n{name}\n\n{content}')
+
+
+if __name__ == '__main__':
+    asyncio.run(main())
